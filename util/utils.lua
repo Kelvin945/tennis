@@ -1,10 +1,11 @@
 require 'os'
 require 'lfs'
 require 'string'
+require 'ffmpeg'
 
-local util = {}
+local utils = {}
 
-function util.Error(string)
+function utils.Error(string)
 	print (string)
 	os.exit()
 end
@@ -13,7 +14,7 @@ end
 	code snipe from page: http://www.fhug.org.uk/wiki/wiki/doku.php?id=plugins:code_snippets:folder_exists
 ]]--
 
-function util.isDir(folderName)
+function utils.isDir(folderName)
 	if lfs.attributes(folderName:gsub("\\$",""),"mode") == "directory" then
 		return true
 	else
@@ -21,24 +22,24 @@ function util.isDir(folderName)
 	end
 end
 
-function util.checkDir(folderName)
-	if not util.isDir(folderName) then
+function utils.checkDir(folderName)
+	if not utils.isDir(folderName) then
 		lfs.mkdir(folderName)
 		--os.execute("mkdir " .. folderName)
 	end
 end
 
-function util.exist(fileName)
-	if util.isDir(fileName) then
-		util.Error('fileName [' .. fileName .. '] is a directory')
+function utils.exist(fileName)
+	if utils.isDir(fileName) then
+		utils.Error('fileName [' .. fileName .. '] is a directory')
 	end
 	local file_exist = io.open(fileName, "r")
 	if file_exist == nil then
-		util.Error('file ['.. fileName .. '] could not be found or open')
+		utils.Error('file ['.. fileName .. '] could not be found or open')
 	end
 end
 
-function util.loadconfig(fileName, argument, mode)
+function utils.loadconfig(fileName, argument, mode)
 	local opt = {}
 	local config = io.open(fileName, 'r')
 
@@ -71,9 +72,41 @@ function util.loadconfig(fileName, argument, mode)
 	  		end
 	  	end
 	end
+	config:close()
 end
 
-function util.message(message)
+function utils.message(message)
 	print (os.date("[%H:%M:%S] ") .. message)
 end
-return util
+--[[
+
+]]--
+function utils.loadList(fileName)
+	local list = {
+		path = {},
+		label = {},
+		fileName = {}
+	}
+	local file = io.open(fileName, 'r')
+	while true do
+  		local line = file:read()
+  		if (line == nil) then break end
+  		local path, label = string.match(line, "(.*) (%d*)")
+  		label = tonumber(label)
+  		local fileName = paths.basename(path)
+  		table.insert(list.path, path)
+  		table.insert(list.label, label)
+  		table.insert(list.fileName, fileName)
+	end
+	file:close()
+	return list
+end
+
+function utils.dump_videos(videoPaths, dumpPath, imageOptions)
+	-- ensure directory exist
+	paths.mkdir(dumpPath)
+	for _, videoPath in pairs(videoPaths) do
+		
+end
+
+return utils
