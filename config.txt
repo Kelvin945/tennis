@@ -1,11 +1,11 @@
 [train]
 list=/home/compvision/kelvin_git/github/tennis/train.txt
 numFrames=8
-fps=25
+fps=5
 dumpPath=/home/compvision/kelvin_git/github/tennis/data
 batch=10
-height=224
-width=224
+height=320
+width=240
 scaledHeight=224
 scaledWidth=224
 channels=3

@@ -2,6 +2,7 @@ require 'os'
 require 'lfs'
 require 'string'
 require 'ffmpeg'
+require 'torch'
 
 local utils = {}
 
@@ -84,8 +85,7 @@ end
 function utils.loadList(fileName)
 	local list = {
 		path = {},
-		label = {},
-		fileName = {}
+		label = {}
 	}
 	local file = io.open(fileName, 'r')
 	while true do
@@ -96,7 +96,6 @@ function utils.loadList(fileName)
   		local fileName = paths.basename(path)
   		table.insert(list.path, path)
   		table.insert(list.label, label)
-  		table.insert(list.fileName, fileName)
 	end
 	file:close()
 	return list
@@ -105,8 +104,101 @@ end
 function utils.dump_videos(videoPaths, dumpPath, imageOptions)
 	-- ensure directory exist
 	paths.mkdir(dumpPath)
+	local numDumped = 0
+	local numOmitted = 0
 	for _, videoPath in pairs(videoPaths) do
-		
+		local fileName = paths.basename(videoPath)
+		local folderName = (fileName..'_frames')
+		local fullDumpPath = paths.concat(dumpPath, folderName)
+
+   		local video = ffmpeg.Video{
+   			path=videoPath,
+   			width=imageOptions.width, 
+   			height=imageOptions.height, 
+			fps=imageOptions.fps, 				
+			-- force video to play in lower fps which simplify video and reduce frames
+			length=imageOptions.maxClipLength, 
+			channel=imageOptions.channels,		-- set channel in case of single channel
+			silent=true
+		}
+		local videoTensor = video:totensor({}) -- a 4D tensor shape: channels x height x width
+		local numFrames = videoTensor:size()[1]
+
+		-- dump video, select random frames from each section
+		if numFrames >= imageOptions.numFrames then
+			-- segment video frames into semi equally sized segments
+        	-- algorithm: http://stackoverflow.com/a/7788204
+        	-- TODO: make the +1's random rather than front loaded
+        	local segmentSize = math.floor(numFrames / imageOptions.numFrames)
+        	local reminder = numFrames % imageOptions.numFrames
+        	local normal = imageOptions.numFrames - reminder -- number of normal size segments
+
+        	local frameRange = torch.range(1, numFrames) -- double tensor size = number of frames
+        	local segments = {}
+        	local startIndex = 1
+
+        	-- thsoe with reminder
+        	for i = 1, reminder do
+        		local endIndex = startIndex + segmentSize
+        		-- slicing frameRange from start to end index
+        		-- put frame set into segments
+        		table.insert(segments, torch.totable(frameRange[{ {startIndex, endIndex} }]))
+        		startIndex = endIndex +1
+        	end
+
+        	-- those without reminder
+			for i = 1, normal do
+				local endIndex = startIndex + segmentSize - 1
+				table.insert(segments, torch.totable(frameRange[{ {startIndex, endIndex} }]))
+				startIndex = endIndex + 1
+			end
+			-- select random frame from each segment
+			local frameIndices = {}
+	        for i = 1, imageOptions.numFrames do
+	          local segment = segments[i]
+	          table.insert(frameIndices, segment[torch.random(1, #segment)])
+	        end
+	        -- create dump directory
+			if not paths.filep(fullDumpPath) then
+				paths.mkdir(fullDumpPath)
+			end
+
+			-- dump image into directory
+			for k, v in pairs(frameIndices) do
+	          	image.save(paths.concat(fullDumpPath, 'frame%d.%s' % {k, 'png'}), videoTensor[v])
+	        end
+	        numDumped = numDumped + 1
+
+        else
+        	numOmitted = numOmitted + 1
+			utils.message('skip video ['..fileName..'] since it did not contain enough frames')
+		end
+	end
+	utils.message("Video dump complete. Dumped %d videos, omitted %d videos. Total = %d." % {numDumped, numOmitted, numDumped + numOmitted})
 end
 
+function utils.computeImageMean(videoPaths, dumpPath, imageOptions)
+	
+	local meanImage = torch.Tensor(imageOptions.channels, imageOptions.scaledHeight, imageOptions.scaledHeight)
+	local sum = torch.Tensor(imageOptions.channels,imageOptions.height,imageOptions.width):zero()
+	local counter = 0
+	for _, videoPath in pairs(videoPaths) do
+
+		local fileName = paths.basename(videoPath)
+		local folderName = (fileName..'_frames')
+		local fullDumpPath = paths.concat(dumpPath, folderName)
+		print (fullDumpPath)
+		local imagefile = paths.concat(fullDumpPath,'frame%d.png')
+		
+		for i=1,imageOptions.numFrames do
+			local imageFileName = imagefile % i
+			local img = image.load(imageFileName,imageOptions.channels,'double')
+			sum:add(img)
+			counter = counter + 1
+		end
+	end
+	sum:div(counter)
+	torch.save('meanfile',sum)
+
+end
 return utils
