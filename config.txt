@@ -4,13 +4,14 @@ numFrames=8
 fps=5
 dumpPath=/home/compvision/kelvin_git/tennis_data
 batch=10
-height=320
-width=240
+height=240
+width=320
 scaledHeight=224
 scaledWidth=224
 channels=3
 lr=0.001
 iteration=30
+meanfile=mean.png
 [test]
 filename
 height=199

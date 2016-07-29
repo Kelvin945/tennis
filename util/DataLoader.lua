@@ -47,7 +47,7 @@ function DataLoader:__init()
 		self.opt.train.learningRate = tonumber(utils.loadconfig(filename, 'lr' ,mode))
 		self.opt.train.iteration = tonumber(utils.loadconfig(filename, 'iteration' ,mode))
 		self.opt.train.channels = tonumber(utils.loadconfig(filename, 'channels' ,mode))
-
+		self.opt.train.meanfile = utils.loadconfig(filename, 'meanfile' ,mode)
 		-- load training list with path and label attribute
 		self.opt.train.dataList = utils.loadList(self.opt.train.list)
 		self.opt.train.dataSize = #self.opt.train.dataList.label
@@ -75,18 +75,26 @@ function DataLoader:__init()
 		maxClipLength = 72		-- need to be update
 	}
 	
-	-- dump video into frames
+	-- dump video into frames (scaled)
 	utils.message('Start dumping videos')
 	--utils.dump_videos(self.opt.train.dataList.path, self.opt.train.dumpPath, imageOptions)
+	
 	utils.message('Start computing image mean')
 	--self.opt.train.mean = utils.computeImageMean(self.opt.train.dataList.path,self.opt.train.dumpPath, imageOptions)
-end
+	-- save scaled image mean, remember to keep extension
+	--image.save(self.opt.train.meanfile, self.opt.train.mean)
 
+end
+-- todo: remember to scale testing data(or maybe scale in dump video)
+-- move load mean into dataloader:init
 function DataLoader:loadBatch(mode)
 	utils.message('Loading Batch')
 
 	local batchSize = self.opt[mode].batchSize
-	
+	local batch = {}
+	-- need to modify this line for different mode... or should I?
+	local imageMean = image.load(self.opt.train.meanfile, self.opt.train.channels, 'double')
+
 	for i=1,batchSize do
 		local index
 
@@ -107,14 +115,17 @@ function DataLoader:loadBatch(mode)
 		if paths.dirp(framePath) then
 			local imagePath = paths.concat(framePath, 'frame%d.png')
 			local videoTensor = torch.Tensor(self.opt.train.numFrames, self.opt.train.channels, self.opt.train.scaledHeight, self.opt.train.scaledWidth)
+			
+			-- add all frames
 			for i=1,self.opt.train.numFrames do
-				print (imagePath % i)
 				local frame = image.load(imagePath % i, self.opt.train.channels, 'double')
         		image.scale(videoTensor[i], frame) -- image.load reads in channels x height x width
-        		-- Todo : handle different tensor size
-        		videoTensor[i] = videoTensor[i] - self.opt.train.mean
+
+        		videoTensor[i] = videoTensor[i] - imageMean
 			end
+			-- todo: put video frames and label into batch list
 		end
+
 		-- update index
 		self.opt.train.shuffleIndex = self.opt.train.shuffleIndex + 1
 	end

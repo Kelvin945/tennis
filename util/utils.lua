@@ -119,8 +119,8 @@ function utils.dump_videos(videoPaths, dumpPath, imageOptions)
 		
    		local video = ffmpeg.Video{
    			path=videoPath,
-   			width=imageOptions.width, 
-   			height=imageOptions.height, 
+   			width=imageOptions.scaledWidth, 
+   			height=imageOptions.scaledHeight, 
 			fps=imageOptions.fps, 				
 			-- force video to play in lower fps which simplify video and reduce frames
 			length=imageOptions.maxClipLength, 
@@ -188,8 +188,8 @@ end
 
 function utils.computeImageMean(videoPaths, dumpPath, imageOptions)
 	
-	local meanImage = torch.Tensor(imageOptions.channels, imageOptions.scaledHeight, imageOptions.scaledHeight)
-	local sum = torch.Tensor(imageOptions.channels,imageOptions.height,imageOptions.width):zero()
+	--local meanImage = torch.Tensor(imageOptions.channels, imageOptions.scaledHeight, imageOptions.scaledWidth)
+	local sum = torch.Tensor(imageOptions.channels,imageOptions.scaledHeight,imageOptions.scaledWidth):zero()
 	local counter = 0
 	local progressCounter = 1
 	local totalSize = #videoPaths
@@ -209,7 +209,6 @@ function utils.computeImageMean(videoPaths, dumpPath, imageOptions)
 		progressCounter = progressCounter + 1
 	end
 	sum:div(counter)
-	torch.save('meanfile',sum)
 	return sum
 end
 return utils
