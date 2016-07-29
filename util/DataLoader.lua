@@ -10,14 +10,14 @@ function DataLoader:__init()
 	local cmd = cmd:parse(arg)
 
 	-- store all options
-	local opt = {
+	self.opt = {
 		train = {},
 		test = {}
 	}
-	
 	if cmd.m == '' then
 		utils.Error("mode of train/test is not given")
 	end
+
 
 
 
@@ -34,51 +34,92 @@ function DataLoader:__init()
 	local mode = ''
 	if cmd.m == 'train' then
 		mode = 'train'
-		opt.train.list = utils.loadconfig(filename, 'list' ,mode)
-		opt.train.numFrames = tonumber(utils.loadconfig(filename, 'numFrames' ,mode))
-		opt.train.fps = tonumber(utils.loadconfig(filename, 'fps' ,mode))
-		opt.train.dumpPath = utils.loadconfig(filename, 'dumpPath' ,mode)
-		opt.train.batchSize = tonumber(utils.loadconfig(filename, 'batch' ,mode))
-		opt.train.height = tonumber(utils.loadconfig(filename, 'height' ,mode))
-		opt.train.width = tonumber(utils.loadconfig(filename, 'width' ,mode))
-		opt.train.scaledHeight = tonumber(utils.loadconfig(filename, 'scaledHeight' ,mode))
-		opt.train.scaledWidth = tonumber(utils.loadconfig(filename, 'scaledWidth' ,mode))
-		opt.train.learningRate = tonumber(utils.loadconfig(filename, 'lr' ,mode))
-		opt.train.iteration = tonumber(utils.loadconfig(filename, 'iteration' ,mode))
-		opt.train.channels = tonumber(utils.loadconfig(filename, 'channels' ,mode))
+
+		self.opt.train.list = utils.loadconfig(filename, 'list' ,mode)
+		self.opt.train.numFrames = tonumber(utils.loadconfig(filename, 'numFrames' ,mode))
+		self.opt.train.fps = tonumber(utils.loadconfig(filename, 'fps' ,mode))
+		self.opt.train.dumpPath = utils.loadconfig(filename, 'dumpPath' ,mode)
+		self.opt.train.batchSize = tonumber(utils.loadconfig(filename, 'batch' ,mode))
+		self.opt.train.height = tonumber(utils.loadconfig(filename, 'height' ,mode))
+		self.opt.train.width = tonumber(utils.loadconfig(filename, 'width' ,mode))
+		self.opt.train.scaledHeight = tonumber(utils.loadconfig(filename, 'scaledHeight' ,mode))
+		self.opt.train.scaledWidth = tonumber(utils.loadconfig(filename, 'scaledWidth' ,mode))
+		self.opt.train.learningRate = tonumber(utils.loadconfig(filename, 'lr' ,mode))
+		self.opt.train.iteration = tonumber(utils.loadconfig(filename, 'iteration' ,mode))
+		self.opt.train.channels = tonumber(utils.loadconfig(filename, 'channels' ,mode))
+
+		-- load training list with path and label attribute
+		self.opt.train.dataList = utils.loadList(self.opt.train.list)
+		self.opt.train.dataSize = #self.opt.train.dataList.label
+		self.opt.train.shuffle = torch.randperm(self.opt.train.dataSize)
+		self.opt.train.dumpPath = paths.concat(self.opt.train.dumpPath, mode .. '_videos')
+		
+		-- keep track of index of shuffled data
+		self.opt.train.shuffleIndex = 1
 	else
 		mode = 'test'
 	end
 	utils.message('Config file loaded')
 
-	-- load training list with path and label attribute
-	local dataList = utils.loadList(opt.train.list)
-	local dataSize = #dataList.label
-	local shuffle = torch.randperm(dataSize)
-	local dumpPath = paths.concat(opt.train.dumpPath, mode .. '_videos')
 	
+
 	local imageOptions = {
-		numFrames = opt.train.numFrames,
-		height = opt.train.height,
-		width = opt.train.width,
-		scaledHeight = opt.train.scaledHeight,
-		scaledWidth = opt.train.scaledWidth,
-		channels = opt.train.channels,
-		fps = opt.train.fps,
-		batchSize = opt.train.batchSize,
+		numFrames = self.opt.train.numFrames,
+		height = self.opt.train.height,
+		width = self.opt.train.width,
+		scaledHeight = self.opt.train.scaledHeight,
+		scaledWidth = self.opt.train.scaledWidth,
+		channels = self.opt.train.channels,
+		fps = self.opt.train.fps,
+		batchSize = self.opt.train.batchSize,
 		maxClipLength = 72		-- need to be update
 	}
 	
 	-- dump video into frames
 	utils.message('Start dumping videos')
-	--utils.dump_videos(dataList.path, dumpPath, imageOptions)
-	utils.computeImageMean(dataList.path,dumpPath, imageOptions)
-
+	--utils.dump_videos(self.opt.train.dataList.path, self.opt.train.dumpPath, imageOptions)
+	utils.message('Start computing image mean')
+	--self.opt.train.mean = utils.computeImageMean(self.opt.train.dataList.path,self.opt.train.dumpPath, imageOptions)
 end
 
-function DataLoader:loadBatch()
+function DataLoader:loadBatch(mode)
+	utils.message('Loading Batch')
+
+	local batchSize = self.opt[mode].batchSize
 	
+	for i=1,batchSize do
+		local index
+
+		-- only shuffle training data
+		if mode == 'train' then
+			index = self.opt.train.shuffle[self.opt.train.shuffleIndex]
+		else
+			index = self.opt[mode].shuffleIndex
+		end
+
+		-- get frame path folder
+		local videoPath = self.opt[mode].dataList.path[index]
+		local videoLabel = self.opt[mode].dataList.label[index]
+		local filename = paths.basename(videoPath)
+		local framePath = paths.concat(self.opt[mode].dumpPath, filename .. '_frames')
+		
+		-- check folder exist
+		if paths.dirp(framePath) then
+			local imagePath = paths.concat(framePath, 'frame%d.png')
+			local videoTensor = torch.Tensor(self.opt.train.numFrames, self.opt.train.channels, self.opt.train.scaledHeight, self.opt.train.scaledWidth)
+			for i=1,self.opt.train.numFrames do
+				print (imagePath % i)
+				local frame = image.load(imagePath % i, self.opt.train.channels, 'double')
+        		image.scale(videoTensor[i], frame) -- image.load reads in channels x height x width
+        		-- Todo : handle different tensor size
+        		videoTensor[i] = videoTensor[i] - self.opt.train.mean
+			end
+		end
+		-- update index
+		self.opt.train.shuffleIndex = self.opt.train.shuffleIndex + 1
+	end
 end
+
 
 function DataLoader:print()
 	print 'hello'

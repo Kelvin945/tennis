@@ -3,6 +3,7 @@ require 'lfs'
 require 'string'
 require 'ffmpeg'
 require 'torch'
+require 'xlua'	-- progress bar
 
 local utils = {}
 
@@ -106,11 +107,16 @@ function utils.dump_videos(videoPaths, dumpPath, imageOptions)
 	paths.mkdir(dumpPath)
 	local numDumped = 0
 	local numOmitted = 0
+	local counter = 1
+	local totalSize = #videoPaths
 	for _, videoPath in pairs(videoPaths) do
+		-- display progress bar
+		xlua.progress(counter, totalSize)
+
 		local fileName = paths.basename(videoPath)
 		local folderName = (fileName..'_frames')
 		local fullDumpPath = paths.concat(dumpPath, folderName)
-
+		
    		local video = ffmpeg.Video{
    			path=videoPath,
    			width=imageOptions.width, 
@@ -118,9 +124,11 @@ function utils.dump_videos(videoPaths, dumpPath, imageOptions)
 			fps=imageOptions.fps, 				
 			-- force video to play in lower fps which simplify video and reduce frames
 			length=imageOptions.maxClipLength, 
-			channel=imageOptions.channels,		-- set channel in case of single channel
+			-- channels=imageOptions.channels,		-- set channel in case of single channel
+			-- Noted: never use name 'channel', this is usless and will cause an error
 			silent=true
 		}
+		
 		local videoTensor = video:totensor({}) -- a 4D tensor shape: channels x height x width
 		local numFrames = videoTensor:size()[1]
 
@@ -173,6 +181,7 @@ function utils.dump_videos(videoPaths, dumpPath, imageOptions)
         	numOmitted = numOmitted + 1
 			utils.message('skip video ['..fileName..'] since it did not contain enough frames')
 		end
+		counter = counter + 1
 	end
 	utils.message("Video dump complete. Dumped %d videos, omitted %d videos. Total = %d." % {numDumped, numOmitted, numDumped + numOmitted})
 end
@@ -182,12 +191,13 @@ function utils.computeImageMean(videoPaths, dumpPath, imageOptions)
 	local meanImage = torch.Tensor(imageOptions.channels, imageOptions.scaledHeight, imageOptions.scaledHeight)
 	local sum = torch.Tensor(imageOptions.channels,imageOptions.height,imageOptions.width):zero()
 	local counter = 0
+	local progressCounter = 1
+	local totalSize = #videoPaths
 	for _, videoPath in pairs(videoPaths) do
-
+		xlua.progress(progressCounter, totalSize)
 		local fileName = paths.basename(videoPath)
 		local folderName = (fileName..'_frames')
 		local fullDumpPath = paths.concat(dumpPath, folderName)
-		print (fullDumpPath)
 		local imagefile = paths.concat(fullDumpPath,'frame%d.png')
 		
 		for i=1,imageOptions.numFrames do
@@ -196,9 +206,10 @@ function utils.computeImageMean(videoPaths, dumpPath, imageOptions)
 			sum:add(img)
 			counter = counter + 1
 		end
+		progressCounter = progressCounter + 1
 	end
 	sum:div(counter)
 	torch.save('meanfile',sum)
-
+	return sum
 end
 return utils
