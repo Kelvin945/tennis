@@ -58,6 +58,7 @@ function DataLoader:__init()
 		self.opt.train.shuffleIndex = 1
 	else
 		mode = 'test'
+		-- toAdd: shuffle,
 	end
 	utils.message('Config file loaded')
 
@@ -85,25 +86,22 @@ function DataLoader:__init()
 	--image.save(self.opt.train.meanfile, self.opt.train.mean)
 
 end
--- todo: remember to scale testing data(or maybe scale in dump video)
 -- move load mean into dataloader:init
 function DataLoader:loadBatch(mode)
 	utils.message('Loading Batch')
-
+	local dataSize = #self.opt[mode].list
 	local batchSize = self.opt[mode].batchSize
-	local batch = {}
+	local batch = {}	-- contain frames and labels
+	local frames = {}	-- temp variable for frames
+	local labels = {}	-- temp variable for labels
+
 	-- need to modify this line for different mode... or should I?
 	local imageMean = image.load(self.opt.train.meanfile, self.opt.train.channels, 'double')
 
 	for i=1,batchSize do
-		local index
 
-		-- only shuffle training data
-		if mode == 'train' then
-			index = self.opt.train.shuffle[self.opt.train.shuffleIndex]
-		else
-			index = self.opt[mode].shuffleIndex
-		end
+		-- load shuffled index no matter in which mode
+		local index = self.opt[mode].shuffle[self.opt[mode].shuffleIndex]
 
 		-- get frame path folder
 		local videoPath = self.opt[mode].dataList.path[index]
@@ -118,16 +116,46 @@ function DataLoader:loadBatch(mode)
 			
 			-- add all frames
 			for i=1,self.opt.train.numFrames do
-				local frame = image.load(imagePath % i, self.opt.train.channels, 'double')
-        		image.scale(videoTensor[i], frame) -- image.load reads in channels x height x width
-
+				videoTensor[i] = image.load(imagePath % i, self.opt.train.channels, 'double')
+				-- no need to scale since image has been scaled during dump video
+        		-- image.scale(videoTensor[i], frame) -- image.load reads in channels x height x width
+        		
+        		-- subtract mean value
         		videoTensor[i] = videoTensor[i] - imageMean
 			end
-			-- todo: put video frames and label into batch list
+			-- put video frames and label into batch list
+			table.insert(frames, videoTensor)
+			-- tensor size: numFrames and fill up with label
+			table.insert(labels, torch.Tensor(self.opt.train.numFrames):fill(videoLabel))
 		end
 
 		-- update index
-		self.opt.train.shuffleIndex = self.opt.train.shuffleIndex + 1
+		self.opt[mode].shuffleIndex = self.opt[mode].shuffleIndex + 1
+		
+		-- reset index and re-shuffle index
+		if self.opt[mode].shuffleIndex >= dataSize then
+			self.opt[mode].shuffleIndex = 1
+			self.opt[mode].shuffle = torch.randperm(self.opt[mode].dataSize)
+		end
+	end
+
+	-- in case of ommit video folder
+	if #frames > 0 then
+		-- convert array into tensor type
+		-- todo: test memory require for float type and double type
+		batch.frames = torch.cat(frames, 1):type('torch.DoubleTensor')
+		batch.labels = torch.cat(labels, 1):type('torch.DoubleTensor')
+
+		-- show total numbers of frames in batch: batchSize * numFrames
+		function batch:size()
+			return self.frames:size(1)
+		end
+
+		return batch
+	else
+		-- no frames get, error
+		utils.Error("no frames loaded to batch")
+		return nil 
 	end
 end
 
