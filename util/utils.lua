@@ -51,9 +51,12 @@ function utils.loadconfig(fileName, argument, mode)
 	if mode == 'train' then
 		startString = '[train]'
 		endString = '[test]'
-	else
+	elseif mode == 'test' then
 		startString = '[test]'
 		endString = nil
+	elseif mode == 'system' then
+		startString = '[system]'
+		endString = '[train]'
 	end
 
 	-- process file

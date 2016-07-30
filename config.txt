@@ -1,3 +1,5 @@
+[system]
+GPUindex=0
 [train]
 list=/home/compvision/kelvin_git/github/tennis/train.txt
 numFrames=8

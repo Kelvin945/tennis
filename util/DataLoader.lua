@@ -62,6 +62,22 @@ function DataLoader:__init()
 	end
 	utils.message('Config file loaded')
 
+	utils.message('Checking system environment')
+	self.opt[mode].gpuid = tonumber(utils.loadconfig(filename, 'GPUindex' ,'system'))
+
+	local ok, cunn = pcall(require, 'cunn')
+	    local ok2, cutorch = pcall(require, 'cutorch')
+	    if not ok then utils.message('package cunn not found!') end
+	    if not ok2 then utils.message('package cutorch not found!') end
+	    if ok and ok2 then
+	        utils.message('using CUDA on GPU ' .. self.opt[mode].gpuid .. '...')
+	        cutorch.setDevice(self.opt[mode].gpuid + 1) -- note +1 to make it 0 indexed!
+	    else
+	        utils.message('cutorch or cunn not installed, use CPU mode')
+	        self.opt[mode].gpuid = -1 -- overwrite user setting
+	end
+
+
 	
 
 	local imageOptions = {
