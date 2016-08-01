@@ -1,4 +1,5 @@
 require 'torch'
+require 'model'
 
 local DataLoader = torch.class('DataLoader')
 local utils = require 'util.utils'
@@ -37,6 +38,7 @@ function DataLoader:__init()
 
 		self.opt.train.list = utils.loadconfig(filename, 'list' ,mode)
 		self.opt.train.numFrames = tonumber(utils.loadconfig(filename, 'numFrames' ,mode))
+		self.opt.train.numClass = tonumber(utils.loadconfig(filename, 'numClass' ,mode))
 		self.opt.train.fps = tonumber(utils.loadconfig(filename, 'fps' ,mode))
 		self.opt.train.dumpPath = utils.loadconfig(filename, 'dumpPath' ,mode)
 		self.opt.train.batchSize = tonumber(utils.loadconfig(filename, 'batch' ,mode))
@@ -66,17 +68,21 @@ function DataLoader:__init()
 	self.opt[mode].gpuid = tonumber(utils.loadconfig(filename, 'GPUindex' ,'system'))
 
 	local ok, cunn = pcall(require, 'cunn')
-	    local ok2, cutorch = pcall(require, 'cutorch')
-	    if not ok then utils.message('package cunn not found!') end
-	    if not ok2 then utils.message('package cutorch not found!') end
-	    if ok and ok2 then
-	        utils.message('using CUDA on GPU ' .. self.opt[mode].gpuid .. '...')
-	        cutorch.setDevice(self.opt[mode].gpuid + 1) -- note +1 to make it 0 indexed!
-	    else
-	        utils.message('cutorch or cunn not installed, use CPU mode')
-	        self.opt[mode].gpuid = -1 -- overwrite user setting
+    local ok2, cudnn = pcall(require, 'cudnn')
+    local ok3, cudnn = pcall(require, 'cutorch')
+    if not ok then utils.message('package cunn not found!') end
+    if not ok2 then utils.message('package cudnn not found!') end
+    if not ok3 then utils.message('package cutorch not found!') end
+    if ok and ok2 and ok3 then
+        utils.message('using CUDA on GPU ' .. self.opt[mode].gpuid .. '...')
+        cutorch.setDevice(self.opt[mode].gpuid + 1) -- note +1 to make it 0 indexed!
+    else
+        utils.message('cutorch, cudnn or cunn not installed, use CPU mode')
+        self.opt[mode].gpuid = -1 -- overwrite user setting
 	end
-
+	-- loading network
+	utils.message('Loading network')
+	LRCN(self.opt)
 
 	
 

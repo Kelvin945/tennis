@@ -73,6 +73,10 @@ function utils.loadconfig(fileName, argument, mode)
 	  		local result = string.find(line, argument)
 	  		if result == 1 then
 	  			value = string.match(line, "%a*=(.*)")
+	  			if value == '' then
+	  				print(mode)
+	  				utils.Error('missing value for key [${argument}] in section [${mode}]'% {argument=argument, mode=mode})
+	  			end
 	  			return value
 	  		end
 	  	end
