@@ -32,46 +32,36 @@ function LRCN(arg)
 	local features = nn.Sequential()
 
 	-- input layer, output layer, kernelsize, kernelsize, stride,stride, padding, padding
-	features:add(SpatialConvolution(3,96,11,11,4,4,2,2))       -- 224 -> 55
+	features:add(SpatialConvolution(3,96,11,11,4,4,0,0))       
 	features:add(ReLU(true))
-	features:add(SpatialMaxPooling(3,3,2,2))                   -- 55 ->  27
+	features:add(SpatialMaxPooling(3,3,2,2))                   
 --normal
-	features:add(SpatialConvolution(96,256,5,5,1,1,2,2))       --  27 -> 27
+	features:add(SpatialConvolution(96,256,5,5,1,1,2,2))      
 	features:add(ReLU(true))
-	features:add(SpatialMaxPooling(3,3,2,2))                   --  27 ->  13
+	features:add(SpatialMaxPooling(3,3,2,2))                   
 --noraml
-	features:add(SpatialConvolution(256,384,3,3,1,1,1,1))      --  13 ->  13
+	features:add(SpatialConvolution(256,384,3,3,1,1,1,1))      
 	features:add(ReLU(true))
 	
-	features:add(SpatialConvolution(384,384,3,3,1,1,1,1))      --  13 ->  13
+	features:add(SpatialConvolution(384,384,3,3,1,1,1,1))      
 	features:add(ReLU(true))
 	
-	features:add(SpatialConvolution(384,256,3,3,1,1,1,1))      --  13 ->  13
+	features:add(SpatialConvolution(384,256,3,3,1,1,1,1))      
 	features:add(ReLU(true))
-	features:add(SpatialMaxPooling(3,3,2,2))                   -- 13 -> 6
+	features:add(SpatialMaxPooling(3,3,2,2))                   
 
 	local classifier = nn.Sequential()
 	classifier:add(nn.View(256*6*6))
 	classifier:add(nn.Linear(256*6*6, 4096))
 	classifier:add(nn.ReLU(true))
---	classifier:add(nn.Dropout(0.5))
 
-	--reshape for lstm, different from caffe?
-	classifier:add(nn.View(-1, opt.train.numFrames, 4096))
-	-- out 256
-	classifier:add(nn.LSTM(4096,256))
-	-- drop out?
+	classifier:add(nn.Linear(4096, 4096))
+	classifier:add(nn.ReLU(true))
+	classifier:add(nn.Dropout(0.5))
 
-	-- classifier:add(nn.Linear(4096, 4096))
-	-- classifier:add(nn.ReLU(true))
-	-- classifier:add(nn.Dropout(0.5))
-
-	--classifier:add(nn.Linear(4096, 1000))
-	classifier:add(nn.Linear(256, opt.train.numClass))
+	classifier:add(nn.Linear(4096, opt.train.numClass))
 	classifier:add(nn.LogSoftMax())
 
-	-- cnn part
-	local cnn = {}
 	local model = nn.Sequential()
 	model:add(features):add(classifier)
 	return model
